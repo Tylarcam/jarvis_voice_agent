@@ -1,12 +1,15 @@
 import logging
 from livekit.agents import function_tool, RunContext
 import requests
-from langchain_community.tools import DuckDuckGoSearchRun
+from   import DuckDuckGoSearchRun
 import os
 import smtplib
 from email.mime.multipart import MIMEMultipart  
 from email.mime.text import MIMEText
 from typing import Optional
+import difflib
+import subprocess
+import platform
 
 @function_tool()
 async def get_weather(
@@ -110,3 +113,67 @@ async def send_email(
     except Exception as e:
         logging.error(f"Error sending email: {e}")
         return f"An error occurred while sending email: {str(e)}"
+
+@function_tool()
+async def open_directory(context: RunContext, directory_name: str) -> str:
+    r"""
+    Fuzzy search for a directory under C:\Users\tylar\code and open it in Cursor using cnew. If the user says 'code', 'the code folder', or similar, open the main code directory.
+    """
+    # Normalize and interpret common references
+    normalized = directory_name.strip().lower()
+    if normalized in ["code", "the code folder", "my code", "main code", "code directory", "the code directory"]:
+        best_match = r"C:\Users\tylar\code"
+        try:
+            subprocess.Popen(["cnew", best_match])
+            return f"Opened directory: {best_match} in Cursor using cnew."
+        except Exception as e:
+            return f"Failed to open directory: {str(e)}"
+    
+    root_dir = r"C:\Users\tylar\code"
+    all_dirs = []
+    for dirpath, dirnames, _ in os.walk(root_dir):
+        for d in dirnames:
+            all_dirs.append(os.path.join(dirpath, d))
+    matches = difflib.get_close_matches(normalized, [os.path.basename(d).lower() for d in all_dirs], n=1, cutoff=0.6)
+    if not matches:
+        return f"No directory found matching '{directory_name}'."
+    best_match = next(d for d in all_dirs if os.path.basename(d).lower() == matches[0])
+    try:
+        subprocess.Popen(["cnew", best_match])
+        return f"Opened directory: {best_match} in Cursor using cnew."
+    except Exception as e:
+        return f"Failed to open directory: {str(e)}"
+
+@function_tool()
+async def list_files(context: RunContext, directory: str = r"C:\Users\tylar\code") -> str:
+    r"""
+    List all files in the specified directory. Defaults to C:\Users\tylar\code.
+    """
+    try:
+        if not os.path.isdir(directory):
+            return f"Directory not found: {directory}"
+        files = os.listdir(directory)
+        if not files:
+            return f"No files found in {directory}."
+        return "Files in {}:\n".format(directory) + "\n".join(files)
+    except Exception as e:
+        return f"Failed to list files in {directory}: {str(e)}"
+
+@function_tool()
+async def get_os_info(context: RunContext) -> str:
+    r"""
+    Get information about the operating system, including name, version, and platform details.
+    """
+    try:
+        os_name = platform.system()
+        os_version = platform.version()
+        os_release = platform.release()
+        platform_info = platform.platform()
+        return (
+            f"OS Name: {os_name}\n"
+            f"OS Version: {os_version}\n"
+            f"OS Release: {os_release}\n"
+            f"Platform Info: {platform_info}"
+        )
+    except Exception as e:
+        return f"Failed to get OS info: {str(e)}"
