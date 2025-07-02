@@ -1,7 +1,7 @@
 import logging
 from livekit.agents import function_tool, RunContext
 import requests
-from   import DuckDuckGoSearchRun
+from langchain_community.tools import DuckDuckGoSearchRun
 import os
 import smtplib
 from email.mime.multipart import MIMEMultipart  
